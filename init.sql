@@ -1,184 +1,101 @@
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET transaction_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
+-- Удаление существующих таблиц (если нужно)
+DROP TABLE IF EXISTS 
+  public."Bookings_discounts",
+  public."Bookings_services",
+  public."History",
+  public."Bookings",
+  public."Discounts",
+  public."Rooms",
+  public."Hotels",
+  public."Services",
+  public."Users" CASCADE;
 
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
-CREATE TABLE public."Bookings" (
-    booking_id integer NOT NULL,
-    user_id integer NOT NULL,
-    room_id integer NOT NULL,
-    checkindate date,
-    checkoutdate date,
-    datecreated date,
-    totalprice numeric(10,2) NOT NULL,
-    paystatus character varying(15) NOT NULL
-);
-
-
-ALTER TABLE public."Bookings" OWNER TO postgres;
-
-COMMENT ON TABLE public."Bookings" IS 'Забронированный номер';
-
-CREATE TABLE public."Bookings_discounts" (
-    booking_id integer NOT NULL,
-    discount_id integer NOT NULL
-);
-
-
-ALTER TABLE public."Bookings_discounts" OWNER TO postgres;
-
-COMMENT ON TABLE public."Bookings_discounts" IS 'Связь скидок с бронированием';
-
-CREATE TABLE public."Bookings_services" (
-    booking_id integer NOT NULL,
-    service_id integer NOT NULL,
-    quantity integer
-);
-
-
-ALTER TABLE public."Bookings_services" OWNER TO postgres;
-
-COMMENT ON TABLE public."Bookings_services" IS 'Связь с дополнительными услушами';
-
-CREATE TABLE public."Discounts" (
-    discount_id integer NOT NULL,
-    code character varying(50) NOT NULL,
-    type character varying(20) NOT NULL,
-    value numeric(10,2) NOT NULL,
-    datestart date,
-    dateend date
-);
-
-
-ALTER TABLE public."Discounts" OWNER TO postgres;
-
-COMMENT ON TABLE public."Discounts" IS 'Скидки зависящие от времени';
-
-CREATE TABLE public."History" (
-    history_id integer NOT NULL,
-    user_id integer NOT NULL,
-    booking_id integer NOT NULL
-);
-
-ALTER TABLE public."History" OWNER TO postgres;
-
-COMMENT ON TABLE public."History" IS 'История бронирования';
-
+-- Создание таблиц с явным указанием схемы и правильным порядком
 CREATE TABLE public."Hotels" (
-    hotel_id integer NOT NULL,
-    name character varying(100) NOT NULL,
-    location character varying(200) NOT NULL,
-    raiting numeric(3,2) NOT NULL
+  hotel_id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  location VARCHAR(200) NOT NULL,
+  rating NUMERIC(3,2) NOT NULL  -- Исправлено: raiting -> rating
 );
-
-
-ALTER TABLE public."Hotels" OWNER TO postgres;
-
-COMMENT ON TABLE public."Hotels" IS 'Отели';
 
 CREATE TABLE public."Rooms" (
-    room_id integer NOT NULL,
-    hotel_id integer NOT NULL,
-    roomcount integer NOT NULL,
-    price numeric(10,2),
-    status character varying(15),
-    fridge boolean,
-    airconditioner boolean,
-    balcony boolean
+  room_id SERIAL PRIMARY KEY,
+  hotel_id INTEGER NOT NULL REFERENCES public."Hotels"(hotel_id),
+  room_count INTEGER NOT NULL,
+  price NUMERIC(10,2) NOT NULL,
+  status VARCHAR(15) NOT NULL,
+  fridge BOOLEAN,
+  airconditioner BOOLEAN,
+  balcony BOOLEAN
 );
-
-ALTER TABLE public."Rooms" OWNER TO postgres;
-
-COMMENT ON TABLE public."Rooms" IS 'Комнаты';
-
-CREATE TABLE public."Services" (
-    service_id integer NOT NULL,
-    servicename character varying(100) NOT NULL,
-    description text,
-    price numeric(10,2)
-);
-
-ALTER TABLE public."Services" OWNER TO postgres;
-
-COMMENT ON TABLE public."Services" IS 'Услуги (Спа, столик, бассейн и др)';
 
 CREATE TABLE public."Users" (
-    user_id integer NOT NULL,
-    username character varying(50) NOT NULL,
-    password character varying(100) NOT NULL,
-    fullname character varying(100) NOT NULL,
-    dataofbirth date NOT NULL,
-    email character varying(100) NOT NULL,
-    phone character varying(20) NOT NULL
+  user_id SERIAL PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password VARCHAR(100) NOT NULL,
+  fullname VARCHAR(100) NOT NULL,
+  dateofbirth DATE NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  phone VARCHAR(20) NOT NULL
 );
 
-ALTER TABLE public."Users" OWNER TO postgres;
+CREATE TABLE public."Bookings" (
+  booking_id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES public."Users"(user_id),
+  room_id INTEGER NOT NULL REFERENCES public."Rooms"(room_id),
+  checkindate DATE NOT NULL,
+  checkoutdate DATE NOT NULL,
+  datecreated DATE DEFAULT CURRENT_DATE,
+  totalprice NUMERIC(10,2) NOT NULL,
+  paystatus VARCHAR(15) NOT NULL
+);
 
-ALTER TABLE ONLY public."Bookings"
-    ADD CONSTRAINT "Bookings_pkey" PRIMARY KEY (booking_id);
+CREATE TABLE public."Discounts" (
+  discount_id SERIAL PRIMARY KEY,
+  code VARCHAR(50) UNIQUE NOT NULL,
+  type VARCHAR(20) NOT NULL,
+  value NUMERIC(10,2) NOT NULL,
+  datestart DATE,
+  dateend DATE
+);
 
-ALTER TABLE ONLY public."Discounts"
-    ADD CONSTRAINT "Discounts_pkey" PRIMARY KEY (discount_id);
+CREATE TABLE public."Services" (
+  service_id SERIAL PRIMARY KEY,
+  servicename VARCHAR(100) NOT NULL,
+  description TEXT,
+  price NUMERIC(10,2)
+);
 
-ALTER TABLE ONLY public."History"
-    ADD CONSTRAINT "History_pkey" PRIMARY KEY (history_id);
+-- Связующие таблицы
+CREATE TABLE public."Bookings_discounts" (
+  booking_id INTEGER REFERENCES public."Bookings"(booking_id),
+  discount_id INTEGER REFERENCES public."Discounts"(discount_id),
+  PRIMARY KEY (booking_id, discount_id)
+);
 
-ALTER TABLE ONLY public."Hotels"
-    ADD CONSTRAINT "Hotels_pkey" PRIMARY KEY (hotel_id);
+CREATE TABLE public."Bookings_services" (
+  booking_id INTEGER REFERENCES public."Bookings"(booking_id),
+  service_id INTEGER REFERENCES public."Services"(service_id),
+  quantity INTEGER,
+  PRIMARY KEY (booking_id, service_id)
+);
 
-ALTER TABLE ONLY public."Rooms"
-    ADD CONSTRAINT "Rooms_pkey" PRIMARY KEY (room_id);
+CREATE TABLE public."History" (
+  history_id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES public."Users"(user_id),
+  booking_id INTEGER REFERENCES public."Bookings"(booking_id)
+);
 
-ALTER TABLE ONLY public."Services"
-    ADD CONSTRAINT "Services_pkey" PRIMARY KEY (service_id);
+-- Вставка тестовых данных
+INSERT INTO public."Hotels" (name, location, rating) VALUES 
+('Москва', 'Центр', 4.5),
+('СПб', 'Исторический центр', 4.7),
+('Краснод', 'Центр', 4.3);
 
-ALTER TABLE ONLY public."Users"
-    ADD CONSTRAINT "Users_pkey" PRIMARY KEY (user_id);
-
-ALTER TABLE ONLY public."History"
-    ADD CONSTRAINT fk_booking_id FOREIGN KEY (booking_id) REFERENCES public."Bookings"(booking_id);
-
-ALTER TABLE ONLY public."Bookings_discounts"
-    ADD CONSTRAINT fk_booking_id FOREIGN KEY (booking_id) REFERENCES public."Bookings"(booking_id);
-
-ALTER TABLE ONLY public."Bookings_services"
-    ADD CONSTRAINT fk_bookings_id FOREIGN KEY (booking_id) REFERENCES public."Bookings"(booking_id);
-
-ALTER TABLE ONLY public."Bookings_discounts"
-    ADD CONSTRAINT fk_discount_id FOREIGN KEY (discount_id) REFERENCES public."Discounts"(discount_id);
-
-ALTER TABLE ONLY public."Rooms"
-    ADD CONSTRAINT fk_hotel_id FOREIGN KEY (hotel_id) REFERENCES public."Hotels"(hotel_id);
-
-ALTER TABLE ONLY public."Bookings_services"
-    ADD CONSTRAINT fk_service_id FOREIGN KEY (service_id) REFERENCES public."Services"(service_id);
-
-ALTER TABLE ONLY public."History"
-    ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES public."Users"(user_id);
-
-
-
-
-INSERT INTO "Hotels" (hotel_id, name, location, raiting) VALUES 
-(1, 'Москва', 'Центр', 4.5),
-(2, 'СПб', 'Исторический центр', 4.7),
-(3, 'Краснод', 'Центр', 4.3);
-
-INSERT INTO "Rooms" (room_id, hotel_id, roomcount, price, status, fridge, airconditioner, balcony) VALUES
-(1, 1, 10, 10000, 'Люкс', true, true, true),
-(2, 1, 20, 5000, 'Эконом', false, true, false),
-(3, 2, 15, 12000, 'Люкс', true, true, true),
-(4, 2, 25, 6000, 'Эконом', false, true, false),
-(5, 3, 8, 8000, 'Люкс', true, true, true),
-(6, 3, 15, 4000, 'Эконом', false, true, false);
+INSERT INTO public."Rooms" (hotel_id, room_count, price, status, fridge, airconditioner, balcony) VALUES
+(1, 10, 10000, 'Люкс', true, true, true),
+(1, 20, 5000, 'Эконом', false, true, false),
+(2, 15, 12000, 'Люкс', true, true, true),
+(2, 25, 6000, 'Эконом', false, true, false),
+(3, 8, 8000, 'Люкс', true, true, true),
+(3, 15, 4000, 'Эконом', false, true, false);
