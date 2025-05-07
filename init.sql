@@ -18,7 +18,7 @@ CREATE TABLE public."Hotels" (
     rating NUMERIC(3,2) NOT NULL CHECK (rating BETWEEN 0 AND 5)
 );
 
--- Номера с уникальным номером в отеле
+-- Номера
 CREATE TABLE public."Rooms" (
     room_id SERIAL PRIMARY KEY,
     hotel_id INTEGER NOT NULL REFERENCES public."Hotels"(hotel_id) ON DELETE CASCADE,
@@ -42,7 +42,7 @@ CREATE TABLE public."Users" (
     phone VARCHAR(20) NOT NULL
 );
 
--- Бронирования с ограничениями
+-- Бронирования
 CREATE TABLE public."Bookings" (
     booking_id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES public."Users"(user_id) ON DELETE CASCADE,
@@ -50,27 +50,20 @@ CREATE TABLE public."Bookings" (
     checkindate DATE NOT NULL CHECK (checkindate >= CURRENT_DATE),
     checkoutdate DATE NOT NULL CHECK (checkoutdate > checkindate),
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    total_price NUMERIC(10,2) GENERATED ALWAYS AS (
-        (checkoutdate - checkindate) * (SELECT price_per_night FROM public."Rooms" WHERE room_id = room_id)
-    ) STORED,
+    total_price NUMERIC(10,2) NOT NULL,
     paystatus VARCHAR(15) NOT NULL DEFAULT 'pending' CHECK (paystatus IN ('pending', 'paid', 'canceled')),
-    
-    -- Ограничения
     CONSTRAINT max_duration CHECK (checkoutdate - checkindate <= 14),
     CONSTRAINT max_future_booking CHECK (checkindate <= CURRENT_DATE + INTERVAL '1 month 15 days')
 );
 
--- Индексы для оптимизации
-CREATE INDEX idx_active_bookings 
-    ON public."Bookings" (user_id, checkoutdate)
-    WHERE checkoutdate > CURRENT_DATE;
+-- Индексы (без CURRENT_DATE в WHERE)
+CREATE INDEX idx_user_checkout 
+    ON public."Bookings" (user_id, checkoutdate);
 
 CREATE INDEX idx_room_availability 
     ON public."Bookings" (room_id, checkindate, checkoutdate);
 
--- Остальные таблицы добавлять сюда
-
--- Вставка тестовых данных
+-- Вставка тестовых отелей
 INSERT INTO public."Hotels" (name, location, rating) VALUES 
 ('Москва', 'Центр Москвы', 4.5),
 ('Санкт-Петербург', 'Исторический центр', 4.7),
@@ -81,7 +74,7 @@ DO $$
 DECLARE 
     hotel RECORD;
 BEGIN
-    FOR hotel IN SELECT hotel_id FROM public."Hotels" LOOP
+    FOR hotel IN SELECT hotel_id, name FROM public."Hotels" LOOP
         INSERT INTO public."Rooms" (hotel_id, room_number, status, price_per_night, fridge, airconditioner, balcony)
         SELECT 
             hotel.hotel_id,
